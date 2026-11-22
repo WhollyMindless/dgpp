@@ -30,6 +30,8 @@ DGPP_TEST_FILTER=json_grammar CUDA_VISIBLE_DEVICES='' build-mask-off/unit_tests
 DGPP_TEST_FILTER=json_grammar CUDA_VISIBLE_DEVICES='' build-mask-on/unit_tests
 DGPP_TEST_FILTER=tool_grammar CUDA_VISIBLE_DEVICES='' build-mask-off/unit_tests
 DGPP_TEST_FILTER=tool_grammar CUDA_VISIBLE_DEVICES='' build-mask-on/unit_tests
+DGPP_TEST_FILTER=minimax_tool CUDA_VISIBLE_DEVICES='' build-mask-off/unit_tests
+DGPP_TEST_FILTER=minimax_tool CUDA_VISIBLE_DEVICES='' build-mask-on/unit_tests
 ```
 
 Run the normal host suite as well; the filters above are the focused checks.
@@ -57,8 +59,8 @@ anchored pattern. Every position calls `GrammarState::mask`, checks the actual
 replay token and calls `allows`/`advance`. With multiple rows it also copies the
 state, advances draft tokens, masks later rows and copies the mask words into
 host staging rows, following the graph engine's staging sequence. EOS is part
-of each replay. The tokenizer's highest ID is reserved as the replay's EOS
-sentinel; model generation configuration is not loaded. This is a CPU
+of each replay. A synthetic EOS ID sits above both the dense vocabulary and
+the added-token IDs. Model generation configuration is not loaded. This is a CPU
 reproduction of the staging sequence, not an engine or GPU execution test.
 
 CSV output reports construction, mask/staging, allows/advance and total replay
@@ -68,8 +70,10 @@ printing and end-of-round state destruction. Temporary draft copies are
 destroyed within the measured mask/staging interval. Preparation is reported
 separately or performed before the replay. Each replay constructs a
 fresh state; later positions exercise its warm cache. The first round is
-retained. Mask digests should match across builds for the same tokenizer,
-fixture and row count; digests are a diagnostic, not an exact-mask oracle.
+retained. The digest reads staged headers and the words written for
+constrained rows outside the mask/staging interval. Digests should match
+across builds for the same tokenizer, fixture and row count. They are a
+diagnostic, not an exact-mask oracle.
 
 Report complete-document totals alongside mask time, short/plain/active controls
 and first-use table cost. Host savings do not establish serving throughput,
