@@ -1029,6 +1029,10 @@ DGPP_TEST(json_grammar_mixedConstraintMasksSurviveStringTransitions) {
        R"({"free":"first","code":"red","n":0.3})"},
       {R"({"anyOf":[{"type":"object","properties":{"free":{"type":"string"},"date":{"type":"string","format":"date"}}},{"type":"object","properties":{"free":{"type":"string","pattern":"^a.*$"}}}]})",
        R"({"free":"abc","date":"2024-02-29"})"},
+      // The pattern branch stays live after 'a' and drops at 'b', making
+      // the rest of the same string eligible for the free-string table.
+      {R"({"anyOf":[{"type":"object","properties":{"free":{"type":"string"},"date":{"type":"string","format":"date"}}},{"type":"object","properties":{"free":{"type":"string","pattern":"^a[0-9]*$"}}}]})",
+       R"({"free":"ab tail","date":"2024-02-29"})"},
       {R"({"anyOf":[{"type":"object","properties":{"free":{"type":"string"},"date":{"type":"string","format":"date"}}},{"type":"object","properties":{"free":{"type":"string"},"n":{"type":"number"}}}]})",
        R"({"free":"abc","n":2})"},
       {R"({"type":"object","properties":{"free":{"type":"array","items":{"type":"string"}},"date":{"type":"string","format":"date"}}})",

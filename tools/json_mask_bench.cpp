@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -32,7 +33,11 @@ int main(int argc, char** argv) {
     const int rounds = argc > 3 ? std::stoi(argv[3]) : 3;
     require(rows >= 1 && rows <= 4 && rounds >= 1 && rounds <= 100, "rows 1..4; rounds 1..100");
     auto tokenizer = Tokenizer::load(argv[1]);
-    const int eos = tokenizer.max_id();
+    // Added-token aliases can end below the top of the dense vocabulary.
+    const int64_t max_id =
+        std::max(tokenizer.max_id(), static_cast<int64_t>(tokenizer.token_by_id_size()) - 1);
+    require(max_id <= std::numeric_limits<int>::max() - 33, "tokenizer too large for mask staging");
+    const int eos = static_cast<int>(max_id + 1);
     auto vocab = GrammarVocab::from_tokenizer(tokenizer, {eos}, eos + 1);
     const auto table_start = Clock::now();
     vocab.prepare_json();
@@ -97,11 +102,16 @@ int main(int argc, char** argv) {
           require(state.active(), "grammar died on accepted token");
           advance_us += micros(advance_start, Clock::now());
           for (int t = 0; t < count; ++t) {
-            digest ^= static_cast<uint64_t>(masks[t].allowed);
+            // Observe the actual staging writes outside the timed interval.
+            const volatile uint32_t* row = staged.data() + t * stride;
+            const uint32_t allowed = row[0];
+            digest ^= allowed;
             digest *= 1099511628211ull;
-            for (uint32_t word : masks[t].words) {
-              digest ^= word;
-              digest *= 1099511628211ull;
+            if (allowed != 0) {
+              for (int w = 1; w < stride; ++w) {
+                digest ^= row[w];
+                digest *= 1099511628211ull;
+              }
             }
           }
         }
